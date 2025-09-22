@@ -1,25 +1,66 @@
 from flask import Flask,render_template,request,url_for,redirect,jsonify
-from flask_mysqldb import MySQL
+from flask_sqlalchemy import SQLAlchemy
+from marshmallow import Schema,fields,ValidationError
 
 app = Flask(__name__)
 
-#Conexion con Base de Datos MySQL
+#Conexion con Base de Datos SQLAlquemy
 
-app.config['MYSQL_HOST']='localhost'    #servidor por defecto
-app.config['MYSQL_USER']='root'         #usuario
-app.config['MYSQL_PASSWORD']='123456'   #clave
-app.config['MYSQL_DB']='NombreDB'       #nombre de la base de datos
+app.config['SQLALCHEMY_DATABASE_URI']='mysql://root:26729325@localhost/webTest'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS']= False
 
-conexion= MySQL(app)   #Le pasamos la app a la conexion con SQL
+db= SQLAlchemy(app)   #Le pasamos la app a la conexion con SQL
 
-@app.before_request
+#definicion de un modelo(tabla db)
+class Usuario(db.Model):
+    __tablename__='usuario'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(50), nullable=False )
+    email = db.Column(db.String(50), unique=True, nullable=False)
+
+#SCHEMA PARA LA SERIALIZACION DE MARSHMALLOW
+class UsuarioSchema(Schema):
+    id = fields.Integer(dump_only=True)
+    nombre = fields.String(required=True)
+    email = fields.String(required=True)
+
+#instanioas del eschema
+usuario_schema = UsuarioSchema()
+usuarios_schema = UsuarioSchema(many=True)
+
+@app.route('/usuarios', methods=['POST'])
+def crear_usuario():
+    try:
+        #deserializa el json a solicitud
+        data = usuario_schema.load(request.json)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+    
+    #crear objeto y guardar en bd
+    nuevo_usuario = Usuario(nombre=data['nombre'], email=data['email'])
+    db.session.add(nuevo_usuario)
+    db.session.commit()
+
+    #serializar objeto para respuesta
+    return jsonify(usuario_schema.dump(nuevo_usuario)), 201
+
+#endpoint Listar usuarios
+@app.route('/usuarios', methods=['GET'])
+def listas_usuarios():
+    #consulta usando ORM
+    usuarios = Usuario.query.all()
+    #serializar para respuesta json(marshmallow)
+    return jsonify(usuarios_schema.dump(usuarios))
+
+
+"""@app.before_request
 def before_request():
     print('antes de la consulta')
 
 @app.after_request
 def after_request(response):
     print('despues de la consulta')
-    return response
+    return response"""
 
 @app.route('/')
 def index():
@@ -54,32 +95,20 @@ def query_string():
     print(request.args.get('param2'))
     return "ok"
 
-@app.route('/cursos')
-def listar_cursos():
-    data={}
-    try:
-        cursor=conexion.connection.cursor()
-        sql= "SELECT codigo, nombre, creditos, FROM curso ORDER BY nombre ASC"
-        cursor.execute(sql)
-        cursos=cursos.fetchall()
-        data['cursos']= cursos
-        print(cursos)
-        data['mensaje'] = 'Exito'
-    except Exception as ex:
-        data['mensaje'] = 'Error'
-    return jsonify(data)
 
 
-def pagina_no_encontrada(error):
     """funcion para redirigir a pagina por defecto de error en este caso es '404.html' o redirijir a index"""
+"""def pagina_no_encontrada(error):
 
     return redirect(url_for('index'))
 
-    #return render_template('404.html'),404
+    #return render_template('404.html'),404"""
 
 if __name__ == '__main__':
-    app.register_error_handler(404,pagina_no_encontrada)
-    app.add_url_rule('/query_string', view_func=query_string)
-    app.run(debug=True,port=5000)
+    """app.register_error_handler(404)
+    app.add_url_rule('/query_string', view_func=query_string)"""
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
 
     
