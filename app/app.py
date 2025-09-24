@@ -1,12 +1,14 @@
 from flask import Flask,render_template,request,url_for,redirect,jsonify
 from flask_sqlalchemy import SQLAlchemy
 from marshmallow import Schema,fields,ValidationError
+import os
 
 app = Flask(__name__)
 
 #Conexion con Base de Datos SQLAlquemy
 
-app.config['SQLALCHEMY_DATABASE_URI']='mysql://root:26729325@localhost/webTest'
+database_url = os.getenv('DATABASE_URL', 'mysql://root:26729325@localhost/webTest')
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS']= False
 
 db= SQLAlchemy(app)   #Le pasamos la app a la conexion con SQL
@@ -109,6 +111,6 @@ if __name__ == '__main__':
     app.add_url_rule('/query_string', view_func=query_string)"""
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
     
